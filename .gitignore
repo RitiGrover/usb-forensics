@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.claude/
+forensic_output/
+demo_output/
+usb_forensics_demo/
+sample_usb_drive/
+first_scan/
+second_scan/
