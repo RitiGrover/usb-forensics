@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>USB Forensics</title>
+<style>
+:root {
+  --bg: #e8e8e6;
+  --ink: #1b1b1a;
+  --mute: #6f6f6b;
+  --chip: #d7d7d4;
+  --line: #1b1b1a;
+  --hair: #bdbdb9;
+  --added: #3d6b52;
+  --removed: #94392d;
+  --modified: #a8741f;
+  --pad: clamp(16px, 3vw, 40px);
+
+  --cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cpath d='M7 3.5V25L12 20.4L15.2 27.8L18.6 26.3L15.4 19H22Z' fill='%231b1b1a' stroke='%23ffffff' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E") 7 4, auto;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; cursor: var(--cursor); }
+a, button, label, input, summary, [role="button"], th, td, tr, .chip, .btn { cursor: var(--cursor); }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.35;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { padding-left: var(--pad); padding-right: var(--pad); max-width: 1440px; margin: 0 auto; }
+.muted { color: var(--mute); }
+.small { font-size: 13px; }
+[hidden] { display: none !important; }
+
+/* nav */
+.nav { display: flex; gap: 6px; flex-wrap: wrap; padding-top: 12px; padding-bottom: 12px; }
+.chip {
+  background: var(--chip);
+  color: var(--ink);
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-size: 14px;
+  padding: 11px 14px;
+  border-radius: 2px;
+  transition: background .15s, color .15s;
+}
+.chip:hover { background: var(--ink); color: var(--bg); }
+.chip-logo { display: grid; place-items: center; width: 46px; padding: 0; }
+.chip-logo span { width: 18px; height: 16px; background: var(--ink); transform: skewY(-12deg); }
+.chip-logo:hover span { background: var(--bg); }
+
+/* hero */
+.hero { position: relative; margin-top: 28px; padding: 40px 0 28px; }
+.plus { position: absolute; font-style: normal; font-size: 22px; line-height: 1; margin: -11px 0; width: 14px; text-align: center; font-weight: 300; }
+.plus[style*="right:0"] { margin-right: -4px; }
+.plus[style*="left:0"] { margin-left: -4px; }
+.plus[style*="left:50%"] { margin-left: -7px; }
+h1 {
+  margin: 0;
+  font-weight: 500;
+  font-size: clamp(60px, 13.5vw, 196px);
+  line-height: .88;
+  letter-spacing: -.06em;
+}
+h1 span { display: block; }
+.l2 { text-align: right; }
+.hero-row { display: flex; justify-content: flex-end; align-items: center; gap: 14px; margin-top: 10px; }
+.outline {
+  font-size: clamp(60px, 13.5vw, 196px);
+  font-weight: 500;
+  line-height: .9;
+  letter-spacing: -.06em;
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--ink);
+}
+.badge {
+  width: 48px; height: 48px; border: 1.5px solid var(--ink); border-radius: 50%;
+  display: grid; place-items: center; font-size: 11px; letter-spacing: .06em;
+}
+
+.lede {
+  max-width: 880px;
+  margin: 44px 0 72px;
+  font-size: clamp(22px, 3.2vw, 38px);
+  line-height: 1;
+  letter-spacing: -.045em;
+  font-weight: 400;
+}
+
+/* labels and figures */
+section { margin-bottom: 72px; }
+.label {
+  display: flex; justify-content: space-between; gap: 16px;
+  text-transform: uppercase; letter-spacing: .05em; font-size: 14px;
+  padding-bottom: 10px; border-bottom: 1px solid var(--line); margin-bottom: 20px;
+}
+
+.fig { border: 1.5px solid var(--line); padding: 8px; }
+.fig-head {
+  position: relative; text-align: center; font-size: 12px; letter-spacing: .06em;
+  padding: 9px 0;
+}
+.fig-icon {
+  position: absolute; right: 2px; top: 6px; width: 18px; height: 14px;
+  background:
+    linear-gradient(var(--ink), var(--ink)) 0 2px / 100% 1.5px no-repeat,
+    linear-gradient(var(--ink), var(--ink)) 0 7px / 100% 1.5px no-repeat,
+    linear-gradient(var(--ink), var(--ink)) 0 12px / 100% 1.5px no-repeat;
+}
+.fig-inner {
+  position: relative; overflow: hidden;
+  border: 1.5px solid var(--line);
+  min-height: min(76vh, 600px);
+  --halo: var(--bg);
+  background-color: var(--bg);
+  background-image: radial-gradient(circle, #9a9a96 1.2px, transparent 1.4px);
+  background-size: 41px 47px;
+  background-position: 20px 20px;
+  display: grid; place-items: start center;
+  transition: background-color .18s, color .18s;
+}
+.art { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+.art path, .art ellipse { fill: var(--bg); stroke: var(--ink); stroke-width: 1; transition: fill .18s, stroke .18s; }
+.drop-copy h2, .drop-copy p { text-shadow: 0 0 3px var(--halo), 0 0 8px var(--halo), 0 0 14px var(--halo), 0 0 22px var(--halo); }
+.fig-inner.over { --halo: var(--ink); }
+.fig-inner { isolation: isolate; }
+.drop-copy > * { position: relative; z-index: 2; }
+.drop-copy { position: relative; z-index: 2; text-align: center; padding: 56px 20px 0; max-width: 760px; }
+.drop-copy h2 {
+  margin: 0; font-weight: 500; font-size: clamp(34px, 6vw, 76px);
+  line-height: .92; letter-spacing: -.055em;
+}
+.drop-copy p { margin: 16px 0 22px; font-size: 15px; color: var(--mute); }
+.drop-copy p b { color: var(--ink); font-weight: 500; }
+.fig-inner.over { background-color: var(--ink); color: var(--bg); }
+.fig-inner.over .art path, .fig-inner.over .art ellipse { fill: var(--ink); stroke: var(--bg); }
+.fig-inner.over .drop-copy p, .fig-inner.over .drop-copy p b { color: var(--bg); }
+.fig-inner.over { background-image: radial-gradient(circle, #5a5a57 1.2px, transparent 1.4px); }
+
+.actions { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.btn {
+  font: inherit; font-size: 13px; text-transform: uppercase; letter-spacing: .05em;
+  background: var(--ink); color: var(--bg); border: 1.5px solid var(--ink);
+  padding: 10px 14px; border-radius: 2px; transition: background .15s, color .15s;
+}
+.btn:hover { background: var(--bg); color: var(--ink); }
+.btn.ghost { background: var(--bg); color: var(--ink); }
+.fig-inner.over .btn.ghost { background: var(--ink); color: var(--bg); border-color: var(--bg); }
+.btn.ghost:hover { background: var(--ink); color: var(--bg); }
+.fig-inner.over .btn:not(.ghost) { background: var(--bg); color: var(--ink); border-color: var(--bg); }
+
+.progress { height: 3px; background: var(--hair); margin: 22px auto 0; max-width: 360px; }
+.progress i { display: block; height: 100%; width: 0; background: var(--ink); transition: width .1s; }
+.status { min-height: 1.4em; margin: 10px 0 0 !important; font-size: 13px !important; }
+.status.err { color: var(--removed); }
+
+/* stats */
+.stats { display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--hair); border-bottom: 1px solid var(--hair); margin-bottom: 18px; }
+.stats-4 { grid-template-columns: repeat(4, 1fr); }
+.stats > div { padding: 18px 12px 16px 0; border-right: 1px solid var(--hair); padding-left: 14px; }
+.stats > div:first-child { padding-left: 0; }
+.stats > div:last-child { border-right: 0; }
+.stats b { display: block; font-weight: 500; font-size: clamp(36px, 5.5vw, 76px); line-height: .95; letter-spacing: -.06em; }
+.stats span { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--mute); }
+.st-added b { color: var(--added); } .st-removed b { color: var(--removed); } .st-modified b { color: var(--modified); }
+
+/* toolbar */
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+.spacer { flex: 1; }
+input[type="search"] {
+  font: inherit; font-size: 14px; background: transparent; color: var(--ink);
+  border: 1.5px solid var(--ink); border-radius: 2px; padding: 9px 12px; min-width: 240px;
+}
+input[type="search"]::placeholder { color: var(--mute); }
+input:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+.check input { accent-color: var(--ink); width: 16px; height: 16px; }
+
+/* tables */
+.table-wrap { overflow-x: auto; border-top: 1px solid var(--line); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-weight: 400; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--mute); padding: 10px 14px 10px 0; white-space: nowrap; }
+td { padding: 11px 14px 11px 0; border-top: 1px solid var(--hair); vertical-align: top; }
+.num { text-align: right; padding-right: 22px; }
+td.path { word-break: break-all; min-width: 180px; }
+td.hash { letter-spacing: .02em; white-space: nowrap; }
+td.hash button { all: unset; cursor: var(--cursor); border-bottom: 1px dotted var(--mute); }
+td.hash button:hover { background: var(--ink); color: var(--bg); }
+tr.dup td:first-child { box-shadow: inset 3px 0 0 var(--ink); padding-left: 10px; }
+.tag { display: inline-block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; padding: 3px 7px; border: 1.5px solid currentColor; border-radius: 2px; }
+.tag.ADDED { color: var(--added); } .tag.REMOVED { color: var(--removed); } .tag.MODIFIED { color: var(--modified); } .tag.UNCHANGED { color: var(--mute); }
+.empty { padding: 28px 0; color: var(--mute); }
+
+/* limits */
+.limits { list-style: none; margin: 0; padding: 0; border-top: 0; }
+.limits li { padding: 14px 0; border-bottom: 1px solid var(--hair); font-size: 18px; letter-spacing: -.02em; max-width: 900px; }
+.limits b { font-weight: 700; }
+
+.foot { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--mute); padding-top: 18px; padding-bottom: 28px; border-top: 1px solid var(--hair); }
+
+@media (max-width: 720px) {
+  .stats, .stats-4 { grid-template-columns: repeat(2, 1fr); }
+  .stats > div { border-bottom: 1px solid var(--hair); }
+  .stats > div:nth-child(2n) { border-right: 0; }
+  .stats > div:nth-child(odd) { padding-left: 0; }
+  .lede { margin-bottom: 48px; }
+  input[type="search"] { min-width: 0; flex: 1 1 100%; }
+}
+@media (hover: none) { html, a, button, label, input, th, td, tr, .chip, .btn { cursor: auto; } }
+</style>
+</head>
+<body>
+
+<header class="wrap nav">
+  <a class="chip chip-logo" href="#top" aria-label="USB Forensics"><span></span></a>
+  <a class="chip" href="#scan">Scan</a>
+  <a class="chip" href="#results">Report</a>
+  <a class="chip" href="#compare">Compare</a>
+  <a class="chip" href="#limits">Limits</a>
+</header>
+
+<main id="top" class="wrap">
+
+  <section class="hero">
+    <i class="plus" style="left:0;top:0">+</i><i class="plus" style="left:50%;top:0">+</i><i class="plus" style="right:0;top:0">+</i>
+    <h1>
+      <span class="l1">Every file,</span>
+      <span class="l2">fingerprinted.</span>
+    </h1>
+    <div class="hero-row">
+      <span class="outline" aria-hidden="true">256</span>
+      <span class="badge" aria-hidden="true">SHA</span>
+    </div>
+    <i class="plus" style="left:0;bottom:0">+</i><i class="plus" style="left:50%;bottom:0">+</i><i class="plus" style="right:0;bottom:0">+</i>
+  </section>
+
+  <p class="lede">Drop a folder from a USB drive. See what is on it, what is duplicated, and what changed since the last time you looked. Everything is computed in this browser tab. Nothing is uploaded.</p>
+
+  <section id="scan">
+    <div class="label"><span>/ Scan a folder</span><span class="muted">Basics of USB forensics</span></div>
+
+    <div class="fig">
+      <div class="fig-inner" id="drop">
+        <svg class="art" id="art" viewBox="0 0 800 420" preserveAspectRatio="xMidYMax slice" aria-hidden="true"></svg>
+        <div class="drop-copy">
+          <h2 id="drop-title">Drop a folder here</h2>
+          <p id="drop-sub">A baseline <b>manifest.json</b> dropped here is loaded as the earlier scan.</p>
+          <div class="actions">
+            <button class="btn" id="pick-folder" type="button">Choose folder</button>
+            <button class="btn ghost" id="pick-manifest" type="button">Load baseline</button>
+            <button class="btn ghost" id="demo" type="button">Run sample</button>
+          </div>
+          <div class="progress" id="progress" hidden><i id="bar"></i></div>
+          <p class="status" id="status" role="status"></p>
+        </div>
+        <input id="folder-input" type="file" webkitdirectory multiple hidden>
+        <input id="manifest-input" type="file" accept="application/json,.json" hidden>
+      </div>
+    </div>
+  </section>
+
+  <section id="results" hidden>
+    <div class="label"><span>/ Report</span><span class="muted" id="scan-meta"></span></div>
+
+    <div class="stats">
+      <div><b id="s-files">0</b><span>Files</span></div>
+      <div><b id="s-dups">0</b><span>Duplicate files</span></div>
+      <div><b id="s-groups">0</b><span>Duplicate groups</span></div>
+      <div><b id="s-errors">0</b><span>Read errors</span></div>
+      <div><b id="s-size">0</b><span>Total size</span></div>
+    </div>
+
+    <div class="toolbar">
+      <input id="filter" type="search" placeholder="Filter by name or hash" aria-label="Filter files">
+      <label class="check"><input id="dups-only" type="checkbox"><span>Duplicates only</span></label>
+      <span class="spacer"></span>
+      <button class="btn" id="dl-csv" type="button">forensic_report.csv</button>
+      <button class="btn" id="dl-manifest" type="button">manifest.json</button>
+      <button class="btn ghost" id="set-baseline" type="button">Use as baseline</button>
+    </div>
+
+    <div class="table-wrap">
+      <table id="table">
+        <thead><tr><th>Path</th><th>Type</th><th class="num">Size</th><th>Modified</th><th>SHA-256</th><th>Duplicate</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="compare" hidden>
+    <div class="label"><span>/ Compare with baseline</span><span class="muted" id="baseline-meta"></span></div>
+    <div class="stats stats-4">
+      <div class="st-added"><b id="c-added">0</b><span>Added</span></div>
+      <div class="st-removed"><b id="c-removed">0</b><span>Removed</span></div>
+      <div class="st-modified"><b id="c-modified">0</b><span>Modified</span></div>
+      <div class="st-unchanged"><b id="c-unchanged">0</b><span>Unchanged</span></div>
+    </div>
+    <div class="toolbar">
+      <span class="muted small">Comparison is by relative path and SHA-256. A renamed file appears as one removed and one added path.</span>
+      <span class="spacer"></span>
+      <button class="btn" id="dl-compare" type="button">integrity_comparison.csv</button>
+      <button class="btn ghost" id="sim-edit" type="button" hidden>Simulate edits and re-scan</button>
+    </div>
+    <div class="table-wrap">
+      <table id="ctable">
+        <thead><tr><th>Path</th><th>Status</th><th>Baseline hash</th><th>Current hash</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="limits">
+    <div class="label"><span>/ What this is not</span></div>
+    <ul class="limits">
+      <li><b>Not a forensic image.</b> It reads files the OS shows. No raw sectors, no unallocated space, no deleted files.</li>
+      <li><b>No write blocking.</b> Use a hardware or validated write blocker before examining real evidence.</li>
+      <li><b>Timestamps are not proof.</b> Browsers expose only the last-modified time, and it can be changed.</li>
+      <li><b>A hash is not authorship.</b> Matching hashes mean matching bytes. A changed hash means different bytes, not wrongdoing.</li>
+      <li><b>Not a chain of custody.</b> A CSV on its own is not an evidence record.</li>
+    </ul>
+  </section>
+
+</main>
+
+<footer class="wrap foot">
+  <span>USB Forensics and File Integrity Analysis System</span>
+  <span>Riti Grover</span>
+</footer>
+
+<script>
+(() => {
+  'use strict';
+
+  const MAX_BYTES = 256 * 1024 * 1024;
+  const $ = (id) => document.getElementById(id);
+  const drop = $('drop');
+
+  const state = { records: [], root: '', scannedAt: '', baseline: null, demoStage: -1 };
+
+  /* ---------- decorative line art ---------- */
+  (function drawArt() {
+    const svg = $('art');
+    const ns = 'http://www.w3.org/2000/svg';
+    const petals = (count, x0, step, seed) => {
+      for (let k = 0; k < count; k++) {
+        const t = k / (count - 1);
+        const ry = 70 + 110 * Math.abs(Math.sin(t * Math.PI * 1.15 + seed));
+        const rx = 22 + 26 * Math.abs(Math.cos(t * Math.PI * 0.9 + seed));
+        const angle = -50 + 100 * t + 18 * Math.sin(t * 7 + seed);
+        const e = document.createElementNS(ns, 'ellipse');
+        e.setAttribute('cx', 0);
+        e.setAttribute('cy', -ry);
+        e.setAttribute('rx', rx.toFixed(1));
+        e.setAttribute('ry', ry.toFixed(1));
+        e.setAttribute('transform', `translate(${(x0 + k * step).toFixed(1)} 440) rotate(${angle.toFixed(1)})`);
+        svg.appendChild(e);
+      }
+    };
+    petals(26, -20, 26, 0.4);
+    petals(30, 880, 26, 1.7);
+  })();
+
+  /* ---------- helpers ---------- */
+  const fmtSize = (n) => {
+    if (n === '' || n == null) return '';
+    if (n < 1024) return `${n} B`;
+    const units = ['KB', 'MB', 'GB', 'TB'];
+    let v = n / 1024, i = 0;
+    while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+    return `${v.toFixed(v < 10 ? 1 : 0)} ${units[i]}`;
+  };
+  const isoSec = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, '+00:00');
+  const localStamp = (iso) => (iso ? iso.replace('T', ' ').slice(0, 16) : '');
+  const ext = (name) => {
+    const i = name.lastIndexOf('.');
+    return i > 0 ? name.slice(i + 1).toLowerCase() : '';
+  };
+  const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const setStatus = (msg, isErr) => {
+    const el = $('status');
+    el.textContent = msg || '';
+    el.classList.toggle('err', !!isErr);
+  };
+
+  async function sha256(file) {
+    if (!(window.crypto && crypto.subtle)) throw new Error('crypto.subtle unavailable (open over https or localhost)');
+    if (file.size > MAX_BYTES) throw new Error(`file larger than ${fmtSize(MAX_BYTES)} browser limit`);
+    return hex(await crypto.subtle.digest('SHA-256', await file.arrayBuffer()));
+  }
+
+  /* ---------- scan ---------- */
+  async function scan(items, root) {
+    items = items.slice().sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+    const bar = $('bar'), progress = $('progress');
+    progress.hidden = false;
+    bar.style.width = '0%';
+    const records = [];
+    for (let i = 0; i < items.length; i++) {
+      const { path, file } = items[i];
+      const rec = {
+        relative_path: path,
+        filename: path.split('/').pop(),
+        extension: ext(path),
+        size_bytes: file.size,
+        modified_time: isoSec(file.lastModified),
+        metadata_time_os_dependent: '',
+        sha256: '',
+        duplicate: 'no',
+        duplicate_group: '',
+        error: '',
+      };
+      try { rec.sha256 = await sha256(file); }
+      catch (e) { rec.error = e.message || String(e); }
+      records.push(rec);
+      bar.style.width = `${Math.round(((i + 1) / items.length) * 100)}%`;
+      setStatus(`Hashing ${i + 1} of ${items.length}`);
+      if (i % 8 === 7) await new Promise((r) => setTimeout(r));
+    }
+    markDuplicates(records);
+    state.records = records;
+    state.root = root;
+    state.scannedAt = new Date().toISOString().replace(/\.\d{3}Z$/, '+00:00');
+    progress.hidden = true;
+    setStatus(`Scanned ${records.length} file${records.length === 1 ? '' : 's'}.`);
+    render();
+    $('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function markDuplicates(records) {
+    const groups = new Map();
+    records.forEach((r) => {
+      if (!r.sha256) return;
+      if (!groups.has(r.sha256)) groups.set(r.sha256, []);
+      groups.get(r.sha256).push(r.relative_path);
+    });
+    records.forEach((r) => {
+      const m = groups.get(r.sha256);
+      if (r.sha256 && m && m.length > 1) { r.duplicate = 'yes'; r.duplicate_group = m.join('; '); }
+    });
+  }
+
+  function compare(baseline, records) {
+    const old = new Map((baseline.files || []).map((f) => [f.relative_path, f.sha256 || '']));
+    const cur = new Map(records.map((r) => [r.relative_path, r.sha256]));
+    const paths = [...new Set([...old.keys(), ...cur.keys()])].sort();
+    return paths.map((p) => {
+      let status;
+      if (!old.has(p)) status = 'ADDED';
+      else if (!cur.has(p)) status = 'REMOVED';
+      else if (old.get(p) !== cur.get(p)) status = 'MODIFIED';
+      else status = 'UNCHANGED';
+      return { relative_path: p, status, baseline_sha256: old.get(p) || '', current_sha256: cur.get(p) || '' };
+    });
+  }
+
+  /* ---------- render ---------- */
+  function render() {
+    const recs = state.records;
+    $('results').hidden = false;
+    const dups = recs.filter((r) => r.duplicate === 'yes');
+    const groups = new Set(dups.map((r) => r.sha256));
+    $('s-files').textContent = recs.length;
+    $('s-dups').textContent = dups.length;
+    $('s-groups').textContent = groups.size;
+    $('s-errors').textContent = recs.filter((r) => r.error).length;
+    $('s-size').textContent = fmtSize(recs.reduce((a, r) => a + (r.size_bytes || 0), 0)) || '0 B';
+    $('scan-meta').textContent = `${state.root} · ${localStamp(state.scannedAt)} UTC`;
+    renderTable();
+    renderCompare();
+  }
+
+  const groupLabel = (() => {
+    return (recs) => {
+      const map = new Map();
+      recs.filter((r) => r.duplicate === 'yes').forEach((r) => {
+        if (!map.has(r.sha256)) map.set(r.sha256, String.fromCharCode(65 + (map.size % 26)));
+      });
+      return map;
+    };
+  })();
+
+  function hashCell(h) {
+    if (!h) return '<span class="muted">not hashed</span>';
+    return `<button type="button" data-hash="${h}" title="Click to copy full hash">${h.slice(0, 16)}…</button>`;
+  }
+
+  function renderTable() {
+    const q = $('filter').value.trim().toLowerCase();
+    const onlyDups = $('dups-only').checked;
+    const labels = groupLabel(state.records);
+    const rows = state.records.filter((r) =>
+      (!onlyDups || r.duplicate === 'yes') &&
+      (!q || r.relative_path.toLowerCase().includes(q) || r.sha256.includes(q)));
+    const body = document.querySelector('#table tbody');
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="6" class="empty">No files match.</td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map((r) => `
+      <tr class="${r.duplicate === 'yes' ? 'dup' : ''}">
+        <td class="path">${escapeHtml(r.relative_path)}${r.error ? `<div class="muted small">${escapeHtml(r.error)}</div>` : ''}</td>
+        <td>${escapeHtml(r.extension || '–')}</td>
+        <td class="num">${fmtSize(r.size_bytes)}</td>
+        <td>${localStamp(r.modified_time)}</td>
+        <td class="hash">${hashCell(r.sha256)}</td>
+        <td>${r.duplicate === 'yes' ? `Group ${labels.get(r.sha256)}` : '–'}</td>
+      </tr>`).join('');
+  }
+
+  function renderCompare() {
+    const sec = $('compare');
+    if (!state.baseline || !state.records.length) { sec.hidden = true; return; }
+    const rows = compare(state.baseline, state.records);
+    state.comparison = rows;
+    const count = (s) => rows.filter((r) => r.status === s).length;
+    $('c-added').textContent = count('ADDED');
+    $('c-removed').textContent = count('REMOVED');
+    $('c-modified').textContent = count('MODIFIED');
+    $('c-unchanged').textContent = count('UNCHANGED');
+    $('baseline-meta').textContent = `baseline ${localStamp(state.baseline.scanned_at || '')} · ${(state.baseline.files || []).length} files`;
+    $('sim-edit').hidden = state.demoStage !== 0;
+    document.querySelector('#ctable tbody').innerHTML = rows.map((r) => `
+      <tr>
+        <td class="path">${escapeHtml(r.relative_path)}</td>
+        <td><span class="tag ${r.status}">${r.status}</span></td>
+        <td class="hash">${r.baseline_sha256 ? r.baseline_sha256.slice(0, 16) + '…' : '–'}</td>
+        <td class="hash">${r.current_sha256 ? r.current_sha256.slice(0, 16) + '…' : '–'}</td>
+      </tr>`).join('');
+    sec.hidden = false;
+  }
+
+  /* ---------- exports ---------- */
+  const csvCell = (v) => {
+    const s = String(v ?? '');
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const toCsv = (fields, rows) => [fields.join(','), ...rows.map((r) => fields.map((f) => csvCell(r[f])).join(','))].join('\r\n') + '\r\n';
+  const download = (name, text, type) => {
+    const url = URL.createObjectURL(new Blob([text], { type }));
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const REPORT_FIELDS = ['relative_path', 'filename', 'extension', 'size_bytes', 'modified_time', 'metadata_time_os_dependent', 'sha256', 'duplicate', 'duplicate_group', 'error'];
+  const manifest = () => ({
+    tool: 'usb_forensics_analyzer',
+    scanned_at: state.scannedAt,
+    root: state.root,
+    file_count: state.records.length,
+    files: state.records,
+  });
+
+  $('dl-csv').onclick = () => download('forensic_report.csv', toCsv(REPORT_FIELDS, state.records), 'text/csv');
+  $('dl-manifest').onclick = () => download('manifest.json', JSON.stringify(manifest(), null, 2), 'application/json');
+  $('dl-compare').onclick = () => download('integrity_comparison.csv', toCsv(['relative_path', 'status', 'baseline_sha256', 'current_sha256'], state.comparison || []), 'text/csv');
+  $('set-baseline').onclick = () => {
+    state.baseline = JSON.parse(JSON.stringify(manifest()));
+    setStatus('Baseline set from this scan. Change something, then scan the folder again.');
+    renderCompare();
+    $('scan').scrollIntoView({ behavior: 'smooth' });
+  };
+
+  $('filter').oninput = renderTable;
+  $('dups-only').onchange = renderTable;
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-hash]');
+    if (!b) return;
+    const old = b.textContent;
+    try { await navigator.clipboard.writeText(b.dataset.hash); b.textContent = 'copied'; }
+    catch { b.textContent = b.dataset.hash; }
+    setTimeout(() => { b.textContent = old; }, 1400);
+  });
+
+  /* ---------- input: folder, manifest, drag and drop ---------- */
+  async function loadBaselineFile(file) {
+    try {
+      const data = JSON.parse(await file.text());
+      if (!data || !Array.isArray(data.files) || (data.files.length && !('relative_path' in data.files[0]))) throw new Error('not a manifest from this tool');
+      state.baseline = data;
+      setStatus(`Baseline loaded: ${data.files.length} files. Now drop the folder to compare.`);
+      renderCompare();
+      return true;
+    } catch (e) {
+      setStatus(`Could not read baseline: ${e.message}`, true);
+      return false;
+    }
+  }
+
+  const readAll = (reader) => new Promise((resolve, reject) => {
+    const out = [];
+    (function next() {
+      reader.readEntries((batch) => {
+        if (!batch.length) return resolve(out);
+        out.push(...batch);
+        next();
+      }, reject);
+    })();
+  });
+  const entryFile = (entry) => new Promise((res, rej) => entry.file(res, rej));
+
+  async function walk(entry, prefix, out) {
+    if (entry.isFile) {
+      try { out.push({ path: prefix + entry.name, file: await entryFile(entry) }); }
+      catch { /* unreadable entry: skipped */ }
+      return;
+    }
+    const children = await readAll(entry.createReader());
+    for (const c of children) await walk(c, prefix + entry.name + '/', out);
+  }
+
+  async function handleEntries(entries, loose) {
+    state.demoStage = -1;
+    const items = [];
+    let rootLabel = 'dropped items';
+    const dirs = entries.filter((e) => e.isDirectory);
+    const files = [...loose];
+    for (const e of entries) {
+      if (e.isFile) { try { files.push(await entryFile(e)); } catch { /* skip */ } }
+    }
+    const jsons = files.filter((f) => /\.json$/i.test(f.name));
+    const others = files.filter((f) => !/\.json$/i.test(f.name));
+    if (jsons.length) await loadBaselineFile(jsons[0]);
+
+    if (dirs.length === 1 && !others.length) {
+      rootLabel = dirs[0].name;
+      const kids = await readAll(dirs[0].createReader());
+      for (const k of kids) await walk(k, '', items);
+    } else {
+      for (const d of dirs) await walk(d, '', items);
+      others.forEach((f) => items.push({ path: f.name, file: f }));
+      if (dirs.length === 1) rootLabel = dirs[0].name;
+    }
+    if (!items.length) {
+      if (!jsons.length) setStatus('Nothing to scan: the dropped folder has no files.', true);
+      return;
+    }
+    await scan(items, rootLabel);
+  }
+
+  ['dragenter', 'dragover'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('over'); $('drop-title').textContent = 'Release to scan'; }));
+  ['dragleave', 'dragend'].forEach((t) => drop.addEventListener(t, (e) => {
+    if (e.type === 'dragleave' && drop.contains(e.relatedTarget)) return;
+    drop.classList.remove('over'); $('drop-title').textContent = 'Drop a folder here';
+  }));
+  drop.addEventListener('drop', (e) => {
+    e.preventDefault();
+    drop.classList.remove('over');
+    $('drop-title').textContent = 'Drop a folder here';
+    const entries = [], loose = [];
+    for (const it of e.dataTransfer.items) {
+      if (it.kind !== 'file') continue;
+      const en = it.webkitGetAsEntry && it.webkitGetAsEntry();
+      if (en) entries.push(en); else { const f = it.getAsFile(); if (f) loose.push(f); }
+    }
+    handleEntries(entries, loose);
+  });
+  ['dragover', 'drop'].forEach((t) => window.addEventListener(t, (e) => e.preventDefault()));
+
+  $('pick-folder').onclick = () => $('folder-input').click();
+  $('pick-manifest').onclick = () => $('manifest-input').click();
+  $('folder-input').onchange = async (e) => {
+    const files = [...e.target.files];
+    e.target.value = '';
+    if (!files.length) return;
+    state.demoStage = -1;
+    const root = (files[0].webkitRelativePath || '').split('/')[0] || 'selected folder';
+    await scan(files.map((f) => ({ path: (f.webkitRelativePath || f.name).split('/').slice(1).join('/') || f.name, file: f })), root);
+  };
+  $('manifest-input').onchange = async (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (f) await loadBaselineFile(f);
+  };
+
+  /* ---------- sample data (no folder needed) ---------- */
+  const mk = (name, content) => new File([content], name, { lastModified: Date.now() - 86400000 });
+  const sample = (stage) => {
+    const base = [
+      { path: 'notes.txt', file: mk('notes.txt', stage ? 'Meeting notes: edited after the baseline scan.\n' : 'Meeting notes: initial version.\n') },
+      { path: 'report.txt', file: mk('report.txt', 'Quarterly report contents.\n') },
+      { path: 'report_copy.txt', file: mk('report_copy.txt', 'Quarterly report contents.\n') },
+      { path: 'docs/placeholder.bin', file: mk('placeholder.bin', new Uint8Array([...Array(64).keys()])) },
+    ];
+    if (stage) base.push({ path: 'new_file.txt', file: mk('new_file.txt', 'Added after the baseline scan.\n') });
+    return base;
+  };
+  $('demo').onclick = async () => {
+    state.baseline = null;
+    $('compare').hidden = true;
+    await scan(sample(0), 'usb_forensics_demo (sample)');
+    state.demoStage = 0;
+    state.baseline = JSON.parse(JSON.stringify(manifest()));
+    renderCompare();
+    setStatus('Sample scanned and saved as the baseline. Use "Simulate edits" under Compare.');
+  };
+  $('sim-edit').onclick = async () => {
+    await scan(sample(1), 'usb_forensics_demo (sample)');
+    state.demoStage = 1;
+    renderCompare();
+    $('compare').scrollIntoView({ behavior: 'smooth' });
+  };
+})();
+</script>
+</body>
+</html>
